@@ -12,6 +12,9 @@ else:
 print (" [+] Loading game config...")
 from get_game_config import get_game_config, patch_game_config
 
+print (" [+] Loading localization...")
+from get_localization import set_locale, get_localized_game_config, get_available_locales
+
 print (" [+] Loading players...")
 from get_player_info import get_player_info, get_neighbor_info
 from sessions import load_saved_villages, all_saves_userid, all_saves_info, save_info, new_village, fb_friends_str
@@ -29,6 +32,7 @@ from bundle import ASSETS_DIR, STUB_DIR, TEMPLATES_DIR, BASE_DIR
 
 host = '127.0.0.1'
 port = 5050
+DEFAULT_LANGUAGE = 'es'  # Idioma por defecto: 'en' o 'es'
 
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 
@@ -45,14 +49,17 @@ def login():
     # Log out previous session
     session.pop('USERID', default=None)
     session.pop('GAMEVERSION', default=None)
+    session.pop('LANGUAGE', default=None)
     # Reload saves. Allows saves modification without server reset
     load_saved_villages()
     # If logging in, set session USERID, and go to play
     if request.method == 'POST':
         session['USERID'] = request.form['USERID']
         session['GAMEVERSION'] = request.form['GAMEVERSION']
+        session['LANGUAGE'] = request.form.get('LANGUAGE', 'es')
         print("[LOGIN] USERID:", request.form['USERID'])
         print("[LOGIN] GAMEVERSION:", request.form['GAMEVERSION'])
+        print("[LOGIN] LANGUAGE:", session['LANGUAGE'])
         return redirect("/play.html")
     # Login page
     if request.method == 'GET':
@@ -73,9 +80,11 @@ def play():
     
     USERID = session['USERID']
     GAMEVERSION = session['GAMEVERSION']
+    LANGUAGE = session.get('LANGUAGE', DEFAULT_LANGUAGE)
     print("[PLAY] USERID:", USERID)
     print("[PLAY] GAMEVERSION:", GAMEVERSION)
-    return render_template("play.html", save_info=save_info(USERID), serverTime=timestamp_now(), friendsInfo=fb_friends_str(USERID), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host)
+    print("[PLAY] LANGUAGE:", LANGUAGE)
+    return render_template("play.html", save_info=save_info(USERID), serverTime=timestamp_now(), friendsInfo=fb_friends_str(USERID), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host, language=LANGUAGE)
 
 @app.route("/ruffle.html")
 def ruffle():
@@ -91,9 +100,11 @@ def ruffle():
     
     USERID = session['USERID']
     GAMEVERSION = session['GAMEVERSION']
+    LANGUAGE = session.get('LANGUAGE', DEFAULT_LANGUAGE)
     print("[RUFFLE] USERID:", USERID)
     print("[RUFFLE] GAMEVERSION:", GAMEVERSION)
-    return render_template("ruffle.html", save_info=save_info(USERID), serverTime=timestamp_now(), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host)
+    print("[RUFFLE] LANGUAGE:", LANGUAGE)
+    return render_template("ruffle.html", save_info=save_info(USERID), serverTime=timestamp_now(), version=version_name, GAMEVERSION=GAMEVERSION, SERVERIP=host, language=LANGUAGE)
 
 
 @app.route("/new.html")
@@ -178,10 +189,12 @@ def get_game_config_response():
     user_key = request.values['user_key']
     if 'spdebug' in request.values:
         spdebug = request.values['spdebug']
-    language = request.values['language']
+    language = request.values.get('language', DEFAULT_LANGUAGE)
 
-    print(f"get_game_config: USERID: {USERID}. --", request.values)
-    return get_game_config()
+    print(f"get_game_config: USERID: {USERID}. Language: {language}. --", request.values)
+    
+    set_locale(language)
+    return get_localized_game_config(language)
 
 @app.route("/dynamic.flash1.dev.socialpoint.es/appsfb/socialempiresdev/srvempires/get_player_info.php", methods=['POST'])
 def get_player_info_response():
